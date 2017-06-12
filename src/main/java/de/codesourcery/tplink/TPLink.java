@@ -15,18 +15,15 @@
  */
 package de.codesourcery.tplink;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.Arrays;
 import java.util.Properties;
-import java.util.stream.Collectors;
 
 /**
  * Very crude client to talk to TP-Link HS100/HS110 Wifi plugs.
@@ -41,11 +38,12 @@ public class TPLink
     
     private boolean debug;
     private boolean verbose;
+    private boolean dryRun;
     
     public static enum Command 
     {
         // System commands
-        GET_SYSTEM_INFO("{\"system\":{\"get_sysinfo\":null}}"),
+        GET_SYSTEM_INFO("{\"system\":{\"get_sysinfo\":null}}",false),
         REBOOT("{\"system\":{\"reboot\":{\"delay\":1}}}"),
         FACTORY_RESET("{\"system\":{\"reset\":{\"delay\":1}}}"),
         PLUG_ON("{\"system\":{\"set_relay_state\":{\"state\":1}}}"),
@@ -57,8 +55,8 @@ public class TPLink
         SET_DEVICE_IF("{\"system\":{\"set_device_id\":{\"deviceId\":\"0123456789ABCDEF0123456789ABCDEF01234567\"}}}"),
         SET_HARDWARE_ID("{\"system\":{\"set_hw_id\":{\"hwId\":\"0123456789ABCDEF0123456789ABCDEF\"}}}"),
         SET_LOCATION("{\"system\":{\"set_dev_location\":{\"longitude\":6.9582814,\"latitude\":50.9412784}}}"),
-        CHECK_BOOTLOADER("{\"system\":{\"test_check_uboot\":null}}"),
-        GET_DEVICE_ICON("{\"system\":{\"get_dev_icon\":null}}"),
+        CHECK_BOOTLOADER("{\"system\":{\"test_check_uboot\":null}}",false),
+        GET_DEVICE_ICON("{\"system\":{\"get_dev_icon\":null}}",false),
         SET_DEVICE_ICON("{\"system\":{\"set_dev_icon\":{\"icon\":\"xxxx\",\"hash\":\"ABCD\"}}}"),
         // Set Test Mode (command only accepted coming from IP 192.168.1.100)
         SET_TEST_MODE("{\"system\":{\"set_test_mode\":{\"enable\":1}}}"),
@@ -70,49 +68,55 @@ public class TPLink
         SCAN_APS("{\"netif\":{\"get_scaninfo\":{\"refresh\":1}}}"),
         CONNECT_TO_AP("{\"netif\":{\"set_stainfo\":{\"ssid\":\"WiFi\",\"password\":\"secret\",\"key_type\":3}}}"),
         // Cloud commands
-        GET_CLOUD_INFO("{\"cnCloud\":{\"get_info\":null}}"),
-        GET_FIRMWARE_LIST("{\"cnCloud\":{\"get_intl_fw_list\":{}}}"),
+        GET_CLOUD_INFO("{\"cnCloud\":{\"get_info\":null}}",false),
+        GET_FIRMWARE_LIST("{\"cnCloud\":{\"get_intl_fw_list\":{}}}",false),
         SET_CLOUD_SERVER_URL("{\"cnCloud\":{\"set_server_url\":{\"server\":\"devs.tplinkcloud.com\"}}}"),
         CONNECT_TO_CLOUD_SERVER("{\"cnCloud\":{\"bind\":{\"username\":\"your@email.com\", \"password\":\"secret\"}}}"),
         UNREGISTER_FROM_CLOUD("{\"cnCloud\":{\"unbind\":null}}"),
         // Time commands
-        GET_TIME("{\"time\":{\"get_time\":null}}"),
-        GET_TIMEZONE("{\"time\":{\"get_timezone\":null}}"),
+        GET_TIME("{\"time\":{\"get_time\":null}}",false),
+        GET_TIMEZONE("{\"time\":{\"get_timezone\":null}}",false),
         SET_TIMEZONE("{\"time\":{\"set_timezone\":{\"year\":2016,\"month\":1,\"mday\":1,\"hour\":10,\"min\":10,\"sec\":10,\"index\":42}}}"),
         // Emeter commands
-        GET_CURRENT_AND_VOLATAGE("{\"emeter\":{\"get_realtime\":{}}}"),
-        GET_VGAIN_AND_IGAIN("{\"emeter\":{\"get_vgain_igain\":{}}}"),
+        GET_CURRENT_AND_VOLATAGE("{\"emeter\":{\"get_realtime\":{}}}",false),
+        GET_VGAIN_AND_IGAIN("{\"emeter\":{\"get_vgain_igain\":{}}}",false),
         SET_VGAIN_AND_IGAIN("{\"emeter\":{\"set_vgain_igain\":{\"vgain\":13462,\"igain\":16835}}}"),
         CALIBRATE_EMETER("{\"emeter\":{\"start_calibration\":{\"vtarget\":13462,\"itarget\":16835}}}"),
-        GET_EMETER_DAILY("{\"emeter\":{\"get_daystat\":{\"month\":1,\"year\":2016}}}"),
-        GET_EMETER_MONTHLY("{\"emeter\":{\"get_daystat\":{\"month\":1,\"year\":2016}}}"),
-        GET_EMETER_YEARLY("{\"emeter\":{\"\"get_monthstat\":{\"year\":2016}}}"),
+        GET_EMETER_DAILY("{\"emeter\":{\"get_daystat\":{\"month\":1,\"year\":2016}}}",false),
+        GET_EMETER_MONTHLY("{\"emeter\":{\"get_daystat\":{\"month\":1,\"year\":2016}}}",false),
+        GET_EMETER_YEARLY("{\"emeter\":{\"\"get_monthstat\":{\"year\":2016}}}",false),
         RESET_EMETER_STATS("{\"emeter\":{\"erase_emeter_stat\":null}}"),
         // Schedule commands
-        GET_NEXT_SCHEDULE_ACTION("{\"schedule\":{\"get_next_action\":null}}"),
-        GET_SCHEDULE_RULES("{\"schedule\":{\"get_rules\":null}}"),
+        GET_NEXT_SCHEDULE_ACTION("{\"schedule\":{\"get_next_action\":null}}",false),
+        GET_SCHEDULE_RULES("{\"schedule\":{\"get_rules\":null}}",false),
         ADD_SCHEDULE_RULE("{\"schedule\":{\"add_rule\":{\"stime_opt\":0,\"wday\":[1,0,0,1,1,0,0],\"smin\":1014,\"enable\":1,\"repeat\":1,\"etime_opt\":-1,\"name\":\"lights on\",\"eact\":-1,\"month\":0,\"sact\":1,\"year\":0,\"longitude\":0,\"day\":0,\"force\":0,\"latitude\":0,\"emin\":0},\"set_overall_enable\":{\"enable\":1}}}"),
         EDIT_SCHEDULE_RULE("{\"schedule\":{\"edit_rule\":{\"stime_opt\":0,\"wday\":[1,0,0,1,1,0,0],\"smin\":1014,\"enable\":1,\"repeat\":1,\"etime_opt\":-1,\"id\":\"4B44932DFC09780B554A740BC1798CBC\",\"name\":\"lights on\",\"eact\":-1,\"month\":0,\"sact\":1,\"year\":0,\"longitude\":0,\"day\":0,\"force\":0,\"latitude\":0,\"emin\":0}}}"),
         DELETE_SCHEDULE_RULE("{\"schedule\":{\"delete_rule\":{\"id\":\"4B44932DFC09780B554A740BC1798CBC\"}}}"),
         DELETE_ALL_SCHEDULE_RULES_AND_STATISTICS("{\"schedule\":{\"delete_all_rules\":null,\"erase_runtime_stat\":null}}"),
         // Countdown rule commands
-        GET_COUNTDOWN_RULE("{\"count_down\":{\"get_rules\":null}}"),
+        GET_COUNTDOWN_RULE("{\"count_down\":{\"get_rules\":null}}",false),
         ADD_COUNTDOWN_RULE("{\"count_down\":{\"add_rule\":{\"enable\":1,\"delay\":1800,\"act\":1,\"name\":\"turn on\"}}}"),
         EDIT_COUNTDOWN_RULE("{\"count_down\":{\"edit_rule\":{\"enable\":1,\"id\":\"7C90311A1CD3227F25C6001D88F7FC13\",\"delay\":1800,\"act\":1,\"name\":\"turn on\"}}}"),
         DELETE_COUNTDOWN_RULE("{\"count_down\":{\"delete_rule\":{\"id\":\"7C90311A1CD3227F25C6001D88F7FC13\"}}}"),
         DELETE_ALL_COUNTDOWN_RULES("{\"count_down\":{\"delete_all_rules\":null}}"),
         // Anti-theft commands 
         // (period of time during which device will be randomly turned on and off to deter thieves) 
-        GET_ANTITHEFT_RULES("{\"anti_theft\":{\"get_rules\":null}}"),
+        GET_ANTITHEFT_RULES("{\"anti_theft\":{\"get_rules\":null}}",false),
         ADD_ANTITHEFT_RULE("{\"anti_theft\":{\"add_rule\":{\"stime_opt\":0,\"wday\":[0,0,0,1,0,1,0],\"smin\":987,\"enable\":1,\"frequency\":5,\"repeat\":1,\"etime_opt\":0,\"duration\":2,\"name\":\"test\",\"lastfor\":1,\"month\":0,\"year\":0,\"longitude\":0,\"day\":0,\"latitude\":0,\"force\":0,\"emin\":1047},\"set_overall_enable\":1}}"), 
         EDIT_ANTITHEFT_RULE("{\"anti_theft\":{\"edit_rule\":{\"stime_opt\":0,\"wday\":[0,0,0,1,0,1,0],\"smin\":987,\"enable\":1,\"frequency\":5,\"repeat\":1,\"etime_opt\":0,\"id\":\"E36B1F4466B135C1FD481F0B4BFC9C30\",\"duration\":2,\"name\":\"test\",\"lastfor\":1,\"month\":0,\"year\":0,\"longitude\":0,\"day\":0,\"latitude\":0,\"force\":0,\"emin\":1047},\"set_overall_enable\":1}}"),
         DELETE_ANTITHEFT_RULE("{\"anti_theft\":{\"delete_rule\":{\"id\":\"E36B1F4466B135C1FD481F0B4BFC9C30\"}}}"),
         DELETE_ALL_ANTITHEFT_RULES("\"anti_theft\":{\"delete_all_rules\":null}} ");
         
         public final String json;
+        public final boolean altersDeviceState;
         
         private Command(String json) {
+            this(json,true);
+        }
+        
+        private Command(String json,boolean changesState) {
             this.json = json;
+            this.altersDeviceState = changesState;
         }
     }
 
@@ -126,10 +130,12 @@ public class TPLink
     
     public void on() throws IOException {
         sendCmd( Command.PLUG_ON );
+        // TODO: Doesn't check device response for errors
     }
     
     public void off() throws IOException {
         sendCmd( Command.PLUG_OFF );
+        // TODO: Doesn't check device response for errors
     }    
     
     private void verbose(String msg) {
@@ -146,13 +152,16 @@ public class TPLink
     
     public String sendCmd(Command cmd) throws IOException 
     {
-        verbose("Sending command "+cmd.name());
+        final String dryRunPrefix = isDryRun() ? "DRY-RUN: " : "";
+        verbose(dryRunPrefix+"Sending command "+cmd.name());
+        if ( isDryRun() && cmd.altersDeviceState ) {
+            return ""; // TODO: Would need to fake response here
+        }
         return sendCmd( cmd.json );
     }
     
-    public String sendCmd(String cmd) throws IOException 
+    private String sendCmd(String cmd) throws IOException 
     {
-        
         debug("Sending command "+cmd+" to "+destination+" , port 9999 TCP" );
         
         try ( Socket clientSocket = new Socket( destination , 9999) )
@@ -248,5 +257,15 @@ public class TPLink
             e.printStackTrace();
         }
         return "<failed to determine version>";
+    }
+    
+    public void setDryRun(boolean dryRun)
+    {
+        this.dryRun = dryRun;
+    }
+    
+    public boolean isDryRun()
+    {
+        return dryRun;
     }
 }

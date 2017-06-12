@@ -59,6 +59,7 @@ public class Main
         final OptionSpecBuilder verboseOpt = parser.accepts( "verbose","enable verbose output" );
         final OptionSpecBuilder versionOpt = parser.accepts( "version","Print application version" );
         final OptionSpecBuilder debugOpt = parser.accepts( "debug" , "enable debug output");
+        final OptionSpecBuilder dryRunOpt = parser.accepts( "dry-run" , "Do not actually modify the plug's configuration/state");
         
         parser.nonOptions().describedAs("<plug IP/hostname> <on|off|info|jenkins>").ofType(String.class);
         
@@ -80,10 +81,14 @@ public class Main
             System.exit(1);
         }
         
+        final boolean verbose = options.has("v") || options.has( verboseOpt );
+        final boolean debug = options.has("d") || options.has( debugOpt );
+        
         final InetAddress address = InetAddress.getByName( remaining.get(0) );
         final TPLink client = new TPLink( address );
-        client.setVerbose( options.has("v") || options.has( verboseOpt ) );
-        client.setDebug( options.has("d") || options.has( debugOpt ) );
+        client.setVerbose( verbose );
+        client.setDebug( debug );
+        client.setDryRun( options.has( dryRunOpt ) );
         
         final String jenkinsHost = options.valueOf( jenkinsHostOpt );
         final String jenkinsUser = options.valueOf( userOpt );
@@ -112,6 +117,8 @@ public class Main
                 if ( jenkinsPort != -1 ) {
                     jenkins.setPort( jenkinsPort );
                 }
+                jenkins.setDebug( debug );
+                jenkins.setVerbose( verbose  );
                 jenkins.setScheme( jenkinsScheme );
 
                 final List<Job> projects = jenkins.getJobs();

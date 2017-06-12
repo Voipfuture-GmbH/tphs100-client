@@ -16,7 +16,7 @@ and you should find a self-executable JAR inside the target folder.
 # Running
 
 ```
-java -jar target/tphs100-client.jar [-d|--debug] [-v|--verbose] [--jenkinshost <hostname>] [--jenkinsuser <username>] [--jenkinspwd <password>] <plug IP/hostname> <on|off|info|jenkins>
+java -jar target/tphs100-client.jar [-d|--debug] [-v|--verbose] [--dry-run] [--version] [--jenkinshost <hostname>] [--jenkinsuser <username>] [--jenkinspwd <password>] <plug IP/hostname> <on|off|info|jenkins>
 ```
 Available commands
 
@@ -31,13 +31,16 @@ Name           Description
 ------
 -d                                                   
 --debug          enable debug output                 
+--dry-run        Do not actually modify the plug's   
+                   configuration/state               
 -h                                                   
 --help           displays this help                  
 --jenkinshost    Jenkins username                    
---jenkinsport    Jenkins port (default: 80)                        
+--jenkinsport    Jenkins port                        
 --jenkinspwd     Jenkins password                    
---jenkinsscheme  Scheme (http/https) to use (default: http)                             
+--jenkinsscheme  Scheme (http/https) to use (default:
+                   http)                             
 --jenkinsuser    Jenkins server IP/name              
 -v                                                   
---verbose        enable verbose output
-
+--verbose        enable verbose output               
+--version        Print application version 
