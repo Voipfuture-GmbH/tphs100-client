@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.text.ParseException;
 import java.util.List;
-import java.util.function.Predicate;
 
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -58,15 +57,25 @@ public class Main
         final ArgumentAcceptingOptionSpec<String> schemeOpt = parser.accepts( "jenkinsscheme" , "Scheme (http/https) to use").withRequiredArg().defaultsTo("http");
         final ArgumentAcceptingOptionSpec<String> jenkinsHostOpt = parser.accepts( "jenkinshost" , "Jenkins username").requiredIf( userOpt , pwdOpt ).withRequiredArg(); 
         final OptionSpecBuilder verboseOpt = parser.accepts( "verbose","enable verbose output" );
+        final OptionSpecBuilder versionOpt = parser.accepts( "version","Print application version" );
         final OptionSpecBuilder debugOpt = parser.accepts( "debug" , "enable debug output");
         
         parser.nonOptions().describedAs("<plug IP/hostname> <on|off|info|jenkins>").ofType(String.class);
         
-        final OptionSet options = parser.parse( args );
+        final OptionSet options = parser.parse(args );
         
+        if ( options.has( versionOpt) ) 
+        {
+            System.out.println("Version "+TPLink.getVersion());
+            if ( options.specs().size() == 1 ) {
+                System.exit(0);
+            }
+        }        
         
+        @SuppressWarnings("unchecked")
         final List<String> remaining = (List<String>) options.nonOptionArguments();
-        if ( remaining.size() != 2 ) {
+        if ( remaining.size() != 2 ) 
+        {
             parser.printHelpOn( System.out );
             System.exit(1);
         }
@@ -75,14 +84,13 @@ public class Main
         final TPLink client = new TPLink( address );
         client.setVerbose( options.has("v") || options.has( verboseOpt ) );
         client.setDebug( options.has("d") || options.has( debugOpt ) );
-
+        
         final String jenkinsHost = options.valueOf( jenkinsHostOpt );
         final String jenkinsUser = options.valueOf( userOpt );
         final String jenkinsScheme = options.valueOf( schemeOpt );
         final String jenkinsPassword = options.valueOf( pwdOpt );
         
-        
-        final int jenkinsPort = options.has( "jenkinsport" ) ? Integer.parseInt( options.valueOf( portOpt ) ) : -1; 
+        final int jenkinsPort = options.has( portOpt ) ? Integer.parseInt( options.valueOf( portOpt ) ) : -1; 
         
         switch( remaining.get(1) ) 
         {
@@ -111,7 +119,7 @@ public class Main
                 if ( client.isVerbose() ) {
                     if ( lightOn ) {
                         System.out.println("The following projects failed to build:");
-                        projects.stream().filter( p -> p.status == JobStatus.FAILURE ).forEach( p -> System.out.println( p.name ) );
+                        projects.stream().filter( p -> p.status.isFailure() ).forEach( p -> System.out.println( p.name ) );
                     } else {
                         System.out.println("No failed builds.");
                     }

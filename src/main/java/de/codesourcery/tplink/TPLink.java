@@ -15,13 +15,18 @@
  */
 package de.codesourcery.tplink;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.util.Arrays;
+import java.util.Properties;
+import java.util.stream.Collectors;
 
 /**
  * Very crude client to talk to TP-Link HS100/HS110 Wifi plugs.
@@ -224,5 +229,24 @@ public class TPLink
     public boolean isDebug()
     {
         return debug;
+    }
+    
+    public static String getVersion() 
+    {
+        try ( final InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream("META-INF/maven/de.codesourcery.tplink/tphs100-client/pom.properties") ) 
+        {
+            if ( in != null ) 
+            {
+                final Properties props = new Properties();
+                props.load( in );
+                final String version = props.getProperty("version");
+                if ( version != null && version.trim().length() > 0 ) {
+                    return version.trim();
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return "<failed to determine version>";
     }
 }
