@@ -259,7 +259,7 @@ public class JenkinsClient implements AutoCloseable
     }    
 
     private HttpHost getHost() throws UnknownHostException {
-        return new HttpHost(InetAddress.getByName( this.host ),port,scheme);
+        return new HttpHost(InetAddress.getByName( this.host ), port , scheme);
     }
 
     private class PreemptiveAuthInterceptor implements HttpRequestInterceptor {
@@ -375,5 +375,18 @@ public class JenkinsClient implements AutoCloseable
             httpClient = null;
             tmp.close();
         }
+    }
+
+    public void setScheme(String scheme)
+    {
+        this.scheme = scheme;
+    }
+    
+    public void setPort(int jenkinsPort)
+    {
+        if ( port < 1 || port > 65535 ) {
+            throw new IllegalArgumentException("Port number must be > 0 && < 65536");
+        }
+        this.port =jenkinsPort;
     }
 }

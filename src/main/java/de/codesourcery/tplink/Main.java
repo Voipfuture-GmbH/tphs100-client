@@ -54,6 +54,8 @@ public class Main
         
         final ArgumentAcceptingOptionSpec<String> userOpt = parser.accepts( "jenkinsuser" ,"Jenkins server IP/name").withRequiredArg();
         final ArgumentAcceptingOptionSpec<String> pwdOpt = parser.accepts( "jenkinspwd" , "Jenkins password").withRequiredArg();
+        final ArgumentAcceptingOptionSpec<String> portOpt = parser.accepts( "jenkinsport" , "Jenkins port").withRequiredArg();
+        final ArgumentAcceptingOptionSpec<String> schemeOpt = parser.accepts( "jenkinsscheme" , "Scheme (http/https) to use").withRequiredArg().defaultsTo("http");
         final ArgumentAcceptingOptionSpec<String> jenkinsHostOpt = parser.accepts( "jenkinshost" , "Jenkins username").requiredIf( userOpt , pwdOpt ).withRequiredArg(); 
         final OptionSpecBuilder verboseOpt = parser.accepts( "verbose","enable verbose output" );
         final OptionSpecBuilder debugOpt = parser.accepts( "debug" , "enable debug output");
@@ -76,7 +78,11 @@ public class Main
 
         final String jenkinsHost = options.valueOf( jenkinsHostOpt );
         final String jenkinsUser = options.valueOf( userOpt );
+        final String jenkinsScheme = options.valueOf( schemeOpt );
         final String jenkinsPassword = options.valueOf( pwdOpt );
+        
+        
+        final int jenkinsPort = options.has( "jenkinsport" ) ? Integer.parseInt( options.valueOf( portOpt ) ) : -1; 
         
         switch( remaining.get(1) ) 
         {
@@ -95,6 +101,10 @@ public class Main
                     jenkins.setUsername( jenkinsUser );
                     jenkins.setPassword( jenkinsPassword );
                 }
+                if ( jenkinsPort != -1 ) {
+                    jenkins.setPort( jenkinsPort );
+                }
+                jenkins.setScheme( jenkinsScheme );
 
                 final Predicate<Job> pred = proj -> proj.status == JobStatus.FAILURE || proj.status == JobStatus.SUCCESS ;
                 final List<Job> projects = jenkins.getJobs();

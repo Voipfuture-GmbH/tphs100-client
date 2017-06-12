@@ -34,6 +34,8 @@ Name           Description
 -h                                   
 --help         displays this help    
 --jenkinshost  Jenkins username      
+--jenkinsport  Jenkins port number (1...65535) 
+--jenkinsscheme Protocol to use (http/https)
 --jenkinspwd   Jenkins password      
 --jenkinsuser  Jenkins server IP/name
 -v                                   
