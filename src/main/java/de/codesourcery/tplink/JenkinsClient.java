@@ -103,14 +103,20 @@ public class JenkinsClient implements AutoCloseable
      */
     public static enum JobStatus 
     { 
-        SUCCESS("blue"),
-        SUCCESS_BUILDING("blue_anime"),
         FAILURE("red"),
+        FAILURE_BUILDING("red_anime"),
         UNSTABLE("yellow"),
         UNSTABLE_BUILDING("yellow_anime"),
+        SUCCESS("blue"),
+        SUCCESS_BUILDING("blue_anime"),
+        GREY("grey"),
+        GREY_ANIME("grey_anime"),
+        DISABLED("disabled"),
+        DISABLED_PENDING("disabled_anime"),
         ABORTED("aborted"),
         ABORTED_PENDING("aborted_anime"),
-        DISABLED("disabled");
+        NOTBUILT("nobuilt"),
+        NOTBUILT_PENDING("nobuilt_anime");
 
         private final String jenkinsText;
 
@@ -260,12 +266,11 @@ public class JenkinsClient implements AutoCloseable
 
         public void process(final HttpRequest request, final HttpContext context) throws HttpException, IOException 
         {
-            AuthState authState = (AuthState) context.getAttribute(ClientContext.TARGET_AUTH_STATE);
-            if (authState.getAuthScheme() == null) {
-                AuthScheme authScheme = (AuthScheme) context.getAttribute("preemptive-auth");
+            final AuthState authState = (AuthState) context.getAttribute(ClientContext.TARGET_AUTH_STATE);
+            if ( authState.getAuthScheme() == null ) {
+                final AuthScheme authScheme = (AuthScheme) context.getAttribute("preemptive-auth");
                 final BasicCredentialsProvider credsProvider = new BasicCredentialsProvider();
                 credsProvider.setCredentials(new AuthScope(getHost()), new UsernamePasswordCredentials(username, password));                
-                HttpHost targetHost = (HttpHost) context.getAttribute(ExecutionContext.HTTP_TARGET_HOST);
                 if (authScheme != null) {
                     authState.setAuthScheme(authScheme);
                     authState.setCredentials(new UsernamePasswordCredentials(username, password));
@@ -281,21 +286,16 @@ public class JenkinsClient implements AutoCloseable
             return httpClient;
         }
 
-        if (isAuthEnabled() )
+        if ( isAuthEnabled() )
         {
             verbose("Connecting to "+host+" (auth_enabled: true)");
-            httpClient = HttpClients.custom()
-                    .addInterceptorFirst( new PreemptiveAuthInterceptor() )
-                    .build();
-
-            // Add AuthCache to the execution context
+            httpClient = HttpClients.custom().addInterceptorFirst( new PreemptiveAuthInterceptor() ).build();
             clientContext = new BasicHttpContext();
             clientContext.setAttribute("preemptive-auth",new BasicScheme()); 
         } else {
             verbose("Connecting to "+host);
             httpClient = HttpClients.createMinimal();
         }
-        
         return httpClient;
     }
 
