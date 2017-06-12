@@ -29,14 +29,15 @@ Available options
 
 Name           Description           
 ------
--d                                   
---debug        enable debug output   
--h                                   
---help         displays this help    
---jenkinshost  Jenkins username      
---jenkinsport  Jenkins port number (1...65535) 
---jenkinsscheme Protocol to use (http/https)
---jenkinspwd   Jenkins password      
---jenkinsuser  Jenkins server IP/name
--v                                   
---verbose      enable verbose output
+-d                                                   
+--debug          enable debug output                 
+-h                                                   
+--help           displays this help                  
+--jenkinshost    Jenkins username                    
+--jenkinsport    Jenkins port (default: 80)                        
+--jenkinspwd     Jenkins password                    
+--jenkinsscheme  Scheme (http/https) to use (default: http)                             
+--jenkinsuser    Jenkins server IP/name              
+-v                                                   
+--verbose        enable verbose output
+
