@@ -108,6 +108,8 @@ public class JenkinsClient implements AutoCloseable
         FAILURE("red"),
         UNSTABLE("yellow"),
         UNSTABLE_BUILDING("yellow_anime"),
+        ABORTED("aborted"),
+        ABORTED_PENDING("aborted_anime"),
         DISABLED("disabled");
 
         private final String jenkinsText;
@@ -196,7 +198,15 @@ public class JenkinsClient implements AutoCloseable
             {
                 final String jobName = getValue( jobNameExpression , tag );
                 final String jobColor = getValue( jobColorExpression , tag );
-                result.add( new Job( jobName , JobStatus.fromString( jobColor ) ) );
+                JobStatus jobstatus;
+                try {
+                    jobstatus = JobStatus.fromString( jobColor );
+                } catch(RuntimeException e) 
+                {
+                    System.err.println("Failed to parse status '"+jobColor+" for job '"+jobName+"'");
+                    throw e;
+                }
+                result.add( new Job( jobName , jobstatus ) );
             }
             verbose("Got "+result.size()+" jobs");
             return result;
