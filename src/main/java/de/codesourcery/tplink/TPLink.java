@@ -23,6 +23,11 @@ import java.net.InetAddress;
 import java.net.Socket;
 import java.util.Arrays;
 
+/**
+ * Very crude client to talk to TP-Link HS100/HS110 Wifi plugs.
+ * 
+ * @author tobias.gierke@code-sourcery.de
+ */
 public class TPLink
 {
     private static final int IV = 171;

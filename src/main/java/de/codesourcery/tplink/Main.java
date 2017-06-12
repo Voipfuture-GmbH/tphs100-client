@@ -17,35 +17,68 @@ package de.codesourcery.tplink;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.text.ParseException;
 import java.util.List;
 import java.util.function.Predicate;
 
+import javax.xml.parsers.ParserConfigurationException;
+
+import org.apache.commons.lang3.StringUtils;
+import org.xml.sax.SAXException;
+
+import de.codesourcery.tplink.JenkinsClient.Job;
+import de.codesourcery.tplink.JenkinsClient.JobStatus;
+import joptsimple.ArgumentAcceptingOptionSpec;
+import joptsimple.OptionParser;
+import joptsimple.OptionSet;
+import joptsimple.OptionSpecBuilder;
+
+/**
+ * Command-line interface.
+ * 
+ * <p>Use '-h' or '--help' to see the available options.
+ * 
+ * </p>
+ * 
+ * @author tobias.gierke@voipfuture.com
+ */
 public class Main
 {
-    private static void printHelp() 
+    public static void main(String[] args) throws IOException, InterruptedException, ParserConfigurationException, SAXException, ParseException
     {
-        System.out.println("\n\nnUSAGE: [-v|--verbose] [-d|--debug] <IP address> <info|on|off>\n\n");
-        System.exit(1);
-    }
-    
-    public static void main(String[] cmdLine) throws IOException, InterruptedException
-    {
-        final List<String> args = new ArrayList<>( Arrays.asList( cmdLine ) );
-        final boolean verbose = args.removeIf( (Predicate<String>) s -> s.equals("-v") || s.equals("--verbose" ) );
-        final boolean debug = args.removeIf( (Predicate<String>) s -> s.equals("-d") || s.equals("--debug" ) );
+        final OptionParser parser = new OptionParser();
+        parser.accepts("d");
+        parser.accepts("v");
+        parser.accepts("h").forHelp();
+        parser.accepts( "help" , "displays this help").forHelp();
         
-        if ( args.size() != 2 ) 
-        {
-            printHelp();
+        final ArgumentAcceptingOptionSpec<String> userOpt = parser.accepts( "jenkinsuser" ,"Jenkins server IP/name").withRequiredArg();
+        final ArgumentAcceptingOptionSpec<String> pwdOpt = parser.accepts( "jenkinspwd" , "Jenkins password").withRequiredArg();
+        final ArgumentAcceptingOptionSpec<String> jenkinsHostOpt = parser.accepts( "jenkinshost" , "Jenkins username").requiredIf( userOpt , pwdOpt ).withRequiredArg(); 
+        final OptionSpecBuilder verboseOpt = parser.accepts( "verbose","enable verbose output" );
+        final OptionSpecBuilder debugOpt = parser.accepts( "debug" , "enable debug output");
+        
+        parser.nonOptions().describedAs("<plug IP/hostname> <on|off|info|jenkins>").ofType(String.class);
+        
+        final OptionSet options = parser.parse( args );
+        
+        
+        final List<String> remaining = (List<String>) options.nonOptionArguments();
+        if ( remaining.size() != 2 ) {
+            parser.printHelpOn( System.out );
+            System.exit(1);
         }
         
-        final InetAddress address = InetAddress.getByName( args.get(0) );
+        final InetAddress address = InetAddress.getByName( remaining.get(0) );
         final TPLink client = new TPLink( address );
-        client.setVerbose( verbose );
-        client.setDebug( debug );
-        switch( args.get(1).toLowerCase() ) 
+        client.setVerbose( options.has("v") || options.has( verboseOpt ) );
+        client.setDebug( options.has("d") || options.has( debugOpt ) );
+
+        final String jenkinsHost = options.valueOf( jenkinsHostOpt );
+        final String jenkinsUser = options.valueOf( userOpt );
+        final String jenkinsPassword = options.valueOf( pwdOpt );
+        
+        switch( remaining.get(1) ) 
         {
             case "info":
                 System.out.println( client.getSystemInfo() );
@@ -56,11 +89,36 @@ public class Main
             case "off":
                 client.off();
                 break;
+            case "jenkins":
+                final JenkinsClient jenkins = new JenkinsClient( jenkinsHost );
+                if ( StringUtils.isNotBlank( jenkinsUser ) ) {
+                    jenkins.setUsername( jenkinsUser );
+                    jenkins.setPassword( jenkinsPassword );
+                }
+
+                final Predicate<Job> pred = proj -> proj.status == JobStatus.FAILURE || proj.status == JobStatus.SUCCESS ;
+                final List<Job> projects = jenkins.getJobs();
+                final boolean lightOn = projects.stream().filter( pred ).anyMatch( p -> p.status != JobStatus.SUCCESS );
+                if ( client.isVerbose() ) {
+                    if ( lightOn ) {
+                        System.out.println("The following projects failed to build:");
+                        projects.stream().filter( p -> p.status == JobStatus.FAILURE ).forEach( p -> System.out.println( p.name ) );
+                    } else {
+                        System.out.println("No failed builds.");
+                    }
+                }
+                if ( lightOn ) {
+                    client.on();
+                } else {
+                    client.off();
+                }
+                break;
             case "-h":
             case "--help":
             case "-help":
             default:
-                printHelp();
-        }
+                parser.printHelpOn( System.out );
+                System.exit(1);
+        }        
     }
 }
