@@ -103,8 +103,12 @@ public class JenkinsClient implements AutoCloseable
      */
     public static enum JobStatus 
     { 
-        FAILURE("red"),
-        FAILURE_BUILDING("red_anime"),
+        FAILURE("red") {
+            @Override public boolean isFailure() { return true; }
+        },
+        FAILURE_BUILDING("red_anime") {
+            @Override public boolean isFailure() { return true; }            
+        },
         UNSTABLE("yellow"),
         UNSTABLE_BUILDING("yellow_anime"),
         SUCCESS("blue"),
@@ -123,7 +127,11 @@ public class JenkinsClient implements AutoCloseable
         private JobStatus(String text) {
             this.jenkinsText = text;
         }
-
+        
+        public boolean isFailure() {
+            return false;
+        }
+        
         public static JobStatus fromString(String s) 
         {
             if ( s == null || s.trim().length() == 0 ) {

@@ -106,9 +106,8 @@ public class Main
                 }
                 jenkins.setScheme( jenkinsScheme );
 
-                final Predicate<Job> pred = proj -> proj.status == JobStatus.FAILURE || proj.status == JobStatus.SUCCESS ;
                 final List<Job> projects = jenkins.getJobs();
-                final boolean lightOn = projects.stream().filter( pred ).anyMatch( p -> p.status != JobStatus.SUCCESS );
+                final boolean lightOn = projects.stream().map( j -> j.status).anyMatch( JobStatus::isFailure );
                 if ( client.isVerbose() ) {
                     if ( lightOn ) {
                         System.out.println("The following projects failed to build:");
