@@ -4,7 +4,7 @@ xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/ma
   <groupId>de.codesourcery.tplink</groupId>
   <artifactId>tphs100-client</artifactId>
   <packaging>jar</packaging>
-  <version>1.0.1-SNAPSHOT</version>
+  <version>1.0.1</version>
   <name>javr</name>
   <description>Java library and client for controlling TP-Link HS100 Wifi plugs</description>
   <licenses>
