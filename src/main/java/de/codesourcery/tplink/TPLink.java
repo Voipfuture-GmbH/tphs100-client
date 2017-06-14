@@ -15,15 +15,24 @@
  */
 package de.codesourcery.tplink;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.Socket;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Properties;
+import java.util.function.Function;
+
+import de.codesourcery.jsonparser.Identifier;
+import de.codesourcery.jsonparser.Parser;
+import de.codesourcery.jsonparser.ast.ASTNode;
+import de.codesourcery.jsonparser.util.ASTPrinter;
 
 /**
  * Very crude client to talk to TP-Link HS100/HS110 Wifi plugs.
@@ -50,28 +59,28 @@ public class TPLink
         PLUG_OFF("{\"system\":{\"set_relay_state\":{\"state\":0}}}"),
         LED_ON("{\"system\":{\"set_led_off\":{\"off\":0}}}"),
         LED_OFF("{\"system\":{\"set_led_off\":{\"off\":1}}}"),
-        SET_DEVICE_ALIAS("{\"system\":{\"set_dev_alias\":{\"alias\":\"supercool plug\"}}}"),
-        SET_MAC_ADDRESS("{\"system\":{\"set_mac_addr\":{\"mac\":\"50-C7-BF-01-02-03\"}}}"),
-        SET_DEVICE_IF("{\"system\":{\"set_device_id\":{\"deviceId\":\"0123456789ABCDEF0123456789ABCDEF01234567\"}}}"),
-        SET_HARDWARE_ID("{\"system\":{\"set_hw_id\":{\"hwId\":\"0123456789ABCDEF0123456789ABCDEF\"}}}"),
-        SET_LOCATION("{\"system\":{\"set_dev_location\":{\"longitude\":6.9582814,\"latitude\":50.9412784}}}"),
+        SET_DEVICE_ALIAS("{\"system\":{\"set_dev_alias\":{\"alias\":\"${deviceAlias}\"}}}"), // "supercool plug'"
+        SET_MAC_ADDRESS("{\"system\":{\"set_mac_addr\":{\"mac\":\"${macAddress}\"}}}"), // "50-C7-BF-01-02-03"
+        SET_DEVICE_IF("{\"system\":{\"set_device_id\":{\"deviceId\":\"${deviceId}\"}}}"), // "0123456789ABCDEF0123456789ABCDEF01234567"
+        SET_HARDWARE_ID("{\"system\":{\"set_hw_id\":{\"hwId\":\"${hardwareId}\"}}}"), // 0123456789ABCDEF0123456789ABCDEF
+        SET_LOCATION("{\"system\":{\"set_dev_location\":{\"longitude\":${longitude},\"latitude\":${latitude}}}}"), // 50.9412784
         CHECK_BOOTLOADER("{\"system\":{\"test_check_uboot\":null}}",false),
         GET_DEVICE_ICON("{\"system\":{\"get_dev_icon\":null}}",false),
         SET_DEVICE_ICON("{\"system\":{\"set_dev_icon\":{\"icon\":\"xxxx\",\"hash\":\"ABCD\"}}}"),
         // Set Test Mode (command only accepted coming from IP 192.168.1.100)
         SET_TEST_MODE("{\"system\":{\"set_test_mode\":{\"enable\":1}}}"),
-        DOWNLOAD_FIRMWARE("{\"system\":{\"download_firmware\":{\"url\":\"http://....\"}}}"),
+        DOWNLOAD_FIRMWARE("{\"system\":{\"download_firmware\":{\"url\":\"${url}\"}}}"), // http://....\
         GET_FIRMWARE_DOWNLOAD_STATE("{\"system\":{\"get_download_state\":{}}}"),
         FLASH_FIRMWARE("{\"system\":{\"flash_firmware\":{}}}"),
         CHECK_CONFIG("{\"system\":{\"check_new_config\":null}}"),
         // WLAN commands
         SCAN_APS("{\"netif\":{\"get_scaninfo\":{\"refresh\":1}}}"),
-        CONNECT_TO_AP("{\"netif\":{\"set_stainfo\":{\"ssid\":\"WiFi\",\"password\":\"secret\",\"key_type\":3}}}"),
+        CONNECT_TO_AP("{\"netif\":{\"set_stainfo\":{\"ssid\":\"${ssid}\",\"password\":\"${password}\",\"key_type\":3}}}"),
         // Cloud commands
         GET_CLOUD_INFO("{\"cnCloud\":{\"get_info\":null}}",false),
         GET_FIRMWARE_LIST("{\"cnCloud\":{\"get_intl_fw_list\":{}}}",false),
-        SET_CLOUD_SERVER_URL("{\"cnCloud\":{\"set_server_url\":{\"server\":\"devs.tplinkcloud.com\"}}}"),
-        CONNECT_TO_CLOUD_SERVER("{\"cnCloud\":{\"bind\":{\"username\":\"your@email.com\", \"password\":\"secret\"}}}"),
+        SET_CLOUD_SERVER_URL("{\"cnCloud\":{\"set_server_url\":{\"server\":\"${cloudServerName}\"}}}"), // devs.tplinkcloud.com
+        CONNECT_TO_CLOUD_SERVER("{\"cnCloud\":{\"bind\":{\"username\":\"${email}\", \"password\":\"${password}\"}}}"),
         UNREGISTER_FROM_CLOUD("{\"cnCloud\":{\"unbind\":null}}"),
         // Time commands
         GET_TIME("{\"time\":{\"get_time\":null}}",false),
@@ -84,7 +93,7 @@ public class TPLink
         CALIBRATE_EMETER("{\"emeter\":{\"start_calibration\":{\"vtarget\":13462,\"itarget\":16835}}}"),
         GET_EMETER_DAILY("{\"emeter\":{\"get_daystat\":{\"month\":1,\"year\":2016}}}",false),
         GET_EMETER_MONTHLY("{\"emeter\":{\"get_daystat\":{\"month\":1,\"year\":2016}}}",false),
-        GET_EMETER_YEARLY("{\"emeter\":{\"\"get_monthstat\":{\"year\":2016}}}",false),
+        GET_EMETER_YEARLY("{\"emeter\":{\"get_monthstat\":{\"year\":2016}}}",false),
         RESET_EMETER_STATS("{\"emeter\":{\"erase_emeter_stat\":null}}"),
         // Schedule commands
         GET_NEXT_SCHEDULE_ACTION("{\"schedule\":{\"get_next_action\":null}}",false),
@@ -105,7 +114,7 @@ public class TPLink
         ADD_ANTITHEFT_RULE("{\"anti_theft\":{\"add_rule\":{\"stime_opt\":0,\"wday\":[0,0,0,1,0,1,0],\"smin\":987,\"enable\":1,\"frequency\":5,\"repeat\":1,\"etime_opt\":0,\"duration\":2,\"name\":\"test\",\"lastfor\":1,\"month\":0,\"year\":0,\"longitude\":0,\"day\":0,\"latitude\":0,\"force\":0,\"emin\":1047},\"set_overall_enable\":1}}"), 
         EDIT_ANTITHEFT_RULE("{\"anti_theft\":{\"edit_rule\":{\"stime_opt\":0,\"wday\":[0,0,0,1,0,1,0],\"smin\":987,\"enable\":1,\"frequency\":5,\"repeat\":1,\"etime_opt\":0,\"id\":\"E36B1F4466B135C1FD481F0B4BFC9C30\",\"duration\":2,\"name\":\"test\",\"lastfor\":1,\"month\":0,\"year\":0,\"longitude\":0,\"day\":0,\"latitude\":0,\"force\":0,\"emin\":1047},\"set_overall_enable\":1}}"),
         DELETE_ANTITHEFT_RULE("{\"anti_theft\":{\"delete_rule\":{\"id\":\"E36B1F4466B135C1FD481F0B4BFC9C30\"}}}"),
-        DELETE_ALL_ANTITHEFT_RULES("\"anti_theft\":{\"delete_all_rules\":null}} ");
+        DELETE_ALL_ANTITHEFT_RULES("{\"anti_theft\":{\"delete_all_rules\":null}}");
         
         public final String json;
         public final boolean altersDeviceState;
@@ -117,6 +126,7 @@ public class TPLink
         private Command(String json,boolean changesState) {
             this.json = json;
             this.altersDeviceState = changesState;
+            new Parser().parse( json ); // throws exception on invalid JSON
         }
     }
 
@@ -152,12 +162,36 @@ public class TPLink
     
     public String sendCmd(Command cmd) throws IOException 
     {
+        return sendCmd(cmd,id -> null);
+    }
+    
+    private String resolvePlaceholders(String json,Function<Identifier,String> placeholderResolver) 
+    {
+        final ASTNode ast = new Parser().parse( json );
+        final ASTPrinter printer = new ASTPrinter();
+        printer.setPrettyPrint( false );
+        final Function<Identifier,String> wrapper = id -> 
+        {
+            final String result = placeholderResolver.apply( id );
+            if ( result == null ) {
+                throw new RuntimeException("Missing placeholder value for '"+id.name+"'");
+            }
+            return result;
+        };
+        return printer.print( ast , wrapper );
+    }
+    
+    public String sendCmd(Command cmd,Function<Identifier,String> placeholderResolver) throws IOException 
+    {
         final String dryRunPrefix = isDryRun() ? "DRY-RUN: " : "";
+        final String json = resolvePlaceholders( cmd.json , placeholderResolver );
         verbose(dryRunPrefix+"Sending command "+cmd.name());
         if ( isDryRun() && cmd.altersDeviceState ) {
+            debug("Sending command "+cmd+" to "+destination+" , port 9999 TCP" );
+            debug( json );
             return ""; // TODO: Would need to fake response here
         }
-        return sendCmd( cmd.json );
+        return sendCmd( json );
     }
     
     private String sendCmd(String cmd) throws IOException 
@@ -267,5 +301,5 @@ public class TPLink
     public boolean isDryRun()
     {
         return dryRun;
-    }
+    }    
 }

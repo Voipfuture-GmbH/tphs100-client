@@ -15,18 +15,24 @@
  */
 package de.codesourcery.tplink;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.text.ParseException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.function.Function;
 
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.lang3.StringUtils;
 import org.xml.sax.SAXException;
 
+import de.codesourcery.jsonparser.Identifier;
 import de.codesourcery.tplink.JenkinsClient.Job;
 import de.codesourcery.tplink.JenkinsClient.JobStatus;
+import de.codesourcery.tplink.TPLink.Command;
 import joptsimple.ArgumentAcceptingOptionSpec;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -48,6 +54,8 @@ public class Main
         final OptionParser parser = new OptionParser();
         parser.accepts("d");
         parser.accepts("v");
+        final OptionSpecBuilder listAvailableCommands = parser.accepts("L","List all available commands");
+        final ArgumentAcceptingOptionSpec<String> execCmd = parser.accepts("c","Execute command").withRequiredArg().describedAs("command name");
         parser.accepts("h").forHelp();
         parser.accepts( "help" , "displays this help").forHelp();
         
@@ -64,6 +72,11 @@ public class Main
         parser.nonOptions().describedAs("<plug IP/hostname> <on|off|info|jenkins>").ofType(String.class);
         
         final OptionSet options = parser.parse(args );
+
+        if ( options.has( listAvailableCommands ) ) {
+            Arrays.stream( TPLink.Command.values() ).map( cmd -> cmd.name() ).sorted().forEach( System.out::println );
+            System.exit(0);
+        }
         
         if ( options.has( versionOpt) ) 
         {
@@ -74,8 +87,9 @@ public class Main
         }        
         
         @SuppressWarnings("unchecked")
+        int expectedSize = options.has( execCmd ) ? 1 : 2;
         final List<String> remaining = (List<String>) options.nonOptionArguments();
-        if ( remaining.size() != 2 ) 
+        if ( remaining.size() != expectedSize ) 
         {
             parser.printHelpOn( System.out );
             System.exit(1);
@@ -96,6 +110,27 @@ public class Main
         final String jenkinsPassword = options.valueOf( pwdOpt );
         
         final int jenkinsPort = options.has( portOpt ) ? Integer.parseInt( options.valueOf( portOpt ) ) : -1; 
+        
+        if ( options.has( execCmd ) ) 
+        {
+            final String cmdName = options.valueOf( execCmd );
+            final Function<Identifier, String> callback = identifier -> 
+            {
+                String result;
+                try {
+                    result = readUserInput( "Please enter a value for '"+identifier+"' : ");
+                    return result;
+                } 
+                catch (IOException e) 
+                {
+                    e.printStackTrace();
+                }
+                System.exit(1);
+                return null; // never reached,make compiler happy
+            };
+            client.sendCmd( Command.valueOf( cmdName ) , callback );
+            System.exit(0);
+        }
         
         switch( remaining.get(1) ) 
         {
@@ -137,12 +172,23 @@ public class Main
                     client.off();
                 }
                 break;
-            case "-h":
-            case "--help":
-            case "-help":
             default:
                 parser.printHelpOn( System.out );
                 System.exit(1);
         }        
+    }
+    
+    private static String readUserInput(String prompt) throws IOException 
+    {
+        String line = null;
+        if ( System.console() != null ) {
+            line = System.console().readLine( prompt );
+        } else {
+            System.out.flush();
+            System.out.println( prompt );
+            BufferedReader r = new BufferedReader(new InputStreamReader(System.in));
+            line = r.readLine();
+        }
+        return line;
     }
 }
