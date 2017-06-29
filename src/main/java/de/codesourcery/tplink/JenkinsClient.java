@@ -15,6 +15,8 @@
  */
 package de.codesourcery.tplink;
 
+import static org.apache.commons.lang3.StringUtils.EMPTY;
+
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -39,7 +41,6 @@ import org.apache.http.auth.AuthScheme;
 import org.apache.http.auth.AuthScope;
 import org.apache.http.auth.AuthState;
 import org.apache.http.auth.UsernamePasswordCredentials;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.protocol.ClientContext;
 import org.apache.http.impl.auth.BasicScheme;
@@ -54,9 +55,9 @@ import org.json.JSONObject;
 import org.xml.sax.SAXException;
 
 /**
- * Very crude Apache Jenkins client that uses the XML API to retrieve
+ * Very crude Apache Jenkins client that uses the JSON API to retrieve
  * a list of all projects and their build status.
- * 
+ *
  * @author tobias.gierke@voipfuture.com
  */
 @SuppressWarnings("deprecation")
@@ -69,23 +70,23 @@ public class JenkinsClient implements AutoCloseable
     private String host;
 
     private CloseableHttpClient httpClient;
-    private BasicHttpContext clientContext;    
+    private BasicHttpContext clientContext;
 
     private boolean debug;
     private boolean verbose;
 
     /**
      * Jenkins job status.
-     * 
+     *
      * @author tobias.gierke@voipfuture.com
      */
-    public static enum JobStatus 
-    { 
+    public static enum JobStatus
+    {
         FAILURE("red") {
             @Override public boolean isFailure() { return true; }
         },
         FAILURE_BUILDING("red_anime") {
-            @Override public boolean isFailure() { return true; }            
+            @Override public boolean isFailure() { return true; }
         },
         UNSTABLE("yellow"),
         UNSTABLE_BUILDING("yellow_anime"),
@@ -105,12 +106,16 @@ public class JenkinsClient implements AutoCloseable
         private JobStatus(String text) {
             this.jenkinsText = text;
         }
-        
+
         public boolean isFailure() {
             return false;
         }
-        
-        public static JobStatus fromString(String s) 
+
+        public boolean isAborted() {
+            return this == ABORTED_PENDING || this == ABORTED;
+        }
+
+        public static JobStatus fromString(String s)
         {
             if ( s == null || s.trim().length() == 0 ) {
                 throw new IllegalArgumentException("Project status must not be NULL/blank");
@@ -121,10 +126,10 @@ public class JenkinsClient implements AutoCloseable
 
     /**
      * A Jenkins job.
-     * 
+     *
      * @author tobias.gierke@voipfuture.com
      */
-    public static class Job 
+    public static class Job
     {
 
         public String name;
@@ -147,7 +152,7 @@ public class JenkinsClient implements AutoCloseable
         }
     }
 
-    public JenkinsClient(String serverName) 
+    public JenkinsClient(String serverName)
     {
         this.host = serverName;
     }
@@ -157,27 +162,27 @@ public class JenkinsClient implements AutoCloseable
             System.out.println(s);
         }
     }
-    
+
     private void debug (String s) {
         if ( debug ) {
             System.out.println(s);
         }
-    }    
+    }
 
     /**
      * Returns all Jenkins jobs whose status is accessible to the current user.
-     * 
+     *
      * @return
      * @throws IOException
      * @throws ParserConfigurationException
      * @throws SAXException
      */
-    public List<Job> getJobs() throws IOException, ParserConfigurationException, SAXException 
+    public List<Job> getJobs() throws IOException, ParserConfigurationException, SAXException
     {
         try ( InputStream in = scrape() )
         {
             String jsonString;
-            try (BufferedReader buffer = new BufferedReader(new InputStreamReader(in))) 
+            try (BufferedReader buffer = new BufferedReader(new InputStreamReader(in)))
             {
                 jsonString = buffer.lines().collect(Collectors.joining("\n"));
             }
@@ -185,21 +190,27 @@ public class JenkinsClient implements AutoCloseable
             final List<Job> result = new ArrayList<>();
             final JSONObject obj = new JSONObject( jsonString );
             final JSONArray jobs = obj.getJSONArray("jobs");
-            for ( int i = 0 ; i < jobs.length() ; i++ ) 
+            for ( int i = 0 ; i < jobs.length() ; i++ )
             {
                 final JSONObject job = jobs.getJSONObject( i );
-                final String jobName = job.getString( "name" ); 
+                final String jobName = job.getString( "name" );
                 final String jobColor = job.getString( "color" );
-                
-                final JobStatus jobstatus;
+
+                JobStatus jobstatus;
                 try {
                     jobstatus = JobStatus.fromString( jobColor );
-                } 
-                catch(RuntimeException e) 
+                }
+                catch(RuntimeException e)
                 {
                     System.err.println("Failed to parse status '"+jobColor+" for job '"+jobName+"'");
                     throw e;
                 }
+
+                // don't ignore the failed jobs if they were aborted
+                if (jobstatus.isAborted() && wasFailedJob(job)) {
+                    jobstatus = JobStatus.FAILURE;
+                }
+
                 final Job toAdd = new Job( jobName , jobstatus );
                 if ( debug ) {
                     debug( toAdd.toString() );
@@ -211,19 +222,63 @@ public class JenkinsClient implements AutoCloseable
         }
     }
 
+    /**
+     * Checks if the failed build is the most recent one compared to the successful build.
+     * @param job
+     * @return
+     */
+    private boolean wasFailedJob(JSONObject job) {
+        final String jobName = job.getString("name");
+        final String lastJob = doGetRequest("/job/" + jobName + "/api/json/");
+        final JSONObject lastJobJSON = new JSONObject(lastJob);
+        final int lastSuccessfulBuildNumber = lastJobJSON.getJSONObject("lastSuccessfulBuild").getInt("number");
+        final int lastFailedBuildNumber = lastJobJSON.getJSONObject("lastFailedBuild").getInt("number");
+        return lastFailedBuildNumber >= lastSuccessfulBuildNumber;
+    }
+
+    private String doGetRequest(String urlSuffix) {
+        String result = EMPTY;
+        try {
+            final URI uri = URI.create(scheme + "://" + host + ":" + port + urlSuffix);
+
+            verbose("URI: " + uri);
+
+            final HttpGet httpGet = new HttpGet(uri);
+
+            final HttpResponse response;
+            if (isAuthEnabled()) {
+                response = getClient().execute(getHost(), httpGet, clientContext);
+            } else {
+                response = getClient().execute(getHost(), httpGet);
+            }
+            result = EntityUtils.toString(response.getEntity());
+
+            if (verbose) {
+                System.out.println("GOT: " + result);
+            }
+
+            if (response.getStatusLine().getStatusCode() != 200) {
+                throw new IOException("Received " + response.getStatusLine());
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return result;
+    }
+
     private HttpHost getHost() throws UnknownHostException {
         return new HttpHost(InetAddress.getByName( this.host ), port , scheme);
     }
 
     private class PreemptiveAuthInterceptor implements HttpRequestInterceptor {
 
-        public void process(final HttpRequest request, final HttpContext context) throws HttpException, IOException 
+        public void process(final HttpRequest request, final HttpContext context) throws HttpException, IOException
         {
             final AuthState authState = (AuthState) context.getAttribute(ClientContext.TARGET_AUTH_STATE);
             if ( authState.getAuthScheme() == null ) {
                 final AuthScheme authScheme = (AuthScheme) context.getAttribute("preemptive-auth");
                 final BasicCredentialsProvider credsProvider = new BasicCredentialsProvider();
-                credsProvider.setCredentials(new AuthScope(getHost()), new UsernamePasswordCredentials(username, password));                
+                credsProvider.setCredentials(new AuthScope(getHost()), new UsernamePasswordCredentials(username, password));
                 if (authScheme != null) {
                     authState.setAuthScheme(authScheme);
                     authState.setCredentials(new UsernamePasswordCredentials(username, password));
@@ -233,7 +288,7 @@ public class JenkinsClient implements AutoCloseable
         }
     }
 
-    private CloseableHttpClient getClient() throws UnknownHostException 
+    private CloseableHttpClient getClient() throws UnknownHostException
     {
         if ( httpClient != null ) {
             return httpClient;
@@ -244,7 +299,7 @@ public class JenkinsClient implements AutoCloseable
             verbose("Connecting to "+host+" (auth_enabled: true)");
             httpClient = HttpClients.custom().addInterceptorFirst( new PreemptiveAuthInterceptor() ).build();
             clientContext = new BasicHttpContext();
-            clientContext.setAttribute("preemptive-auth",new BasicScheme()); 
+            clientContext.setAttribute("preemptive-auth",new BasicScheme());
         } else {
             verbose("Connecting to "+host);
             httpClient = HttpClients.createMinimal();
@@ -256,34 +311,15 @@ public class JenkinsClient implements AutoCloseable
         return username != null;
     }
 
-    public InputStream scrape() throws ClientProtocolException, IOException 
+    public InputStream scrape() throws IOException
     {
-        final URI uri = URI.create(scheme+"://"+host+":"+port+"/api/json");
-
-        verbose("URI: "+uri);
-
-        final HttpGet httpGet = new HttpGet(uri);
-
-        final HttpResponse response;
-        if ( isAuthEnabled() ) 
-        {
-            response = getClient().execute(getHost(), httpGet, clientContext);
-        } else {
-            response = getClient().execute(getHost(), httpGet);
-        }
-        final String content = EntityUtils.toString( response.getEntity() );
-        if ( verbose ) {
-            System.out.println("GOT: "+content );
-        }        
-        if ( response.getStatusLine().getStatusCode() != 200 ) {
-            throw new IOException("Received "+response.getStatusLine());
-        }
+        final String content = doGetRequest("/api/json");
         return new ByteArrayInputStream( content.getBytes() );
     }
 
     /**
      * Enable/disable verbose output to stdout.
-     * 
+     *
      * @param verbose
      */
     public void setVerbose(boolean verbose)
@@ -293,7 +329,7 @@ public class JenkinsClient implements AutoCloseable
 
     /**
      * Sets the username to use when authenticating against the Jenkins server.
-     * 
+     *
      * @param username user name, blank/NULL of no authentication should be used.
      */
     public void setUsername(String username)
@@ -303,7 +339,7 @@ public class JenkinsClient implements AutoCloseable
 
     /**
      * Sets the password to be used when authenticating against the Jenkins server.
-     * 
+     *
      * @param password
      */
     public void setPassword(String password)
@@ -322,7 +358,7 @@ public class JenkinsClient implements AutoCloseable
     @Override
     public void close() throws Exception
     {
-        if ( httpClient != null ) 
+        if ( httpClient != null )
         {
             final CloseableHttpClient tmp = httpClient;
             httpClient = null;
@@ -334,7 +370,7 @@ public class JenkinsClient implements AutoCloseable
     {
         this.scheme = scheme;
     }
-    
+
     public void setPort(int jenkinsPort)
     {
         if ( port < 1 || port > 65535 ) {
@@ -342,12 +378,12 @@ public class JenkinsClient implements AutoCloseable
         }
         this.port =jenkinsPort;
     }
-    
+
     public void setDebug(boolean debug)
     {
         this.debug = debug;
     }
-    
+
     public boolean isDebug()
     {
         return debug;

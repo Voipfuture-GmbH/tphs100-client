@@ -18,14 +18,13 @@ and you should find a self-executable JAR inside the target folder.
 ```
 java -jar target/tphs100-client.jar [-d|--debug] [-v|--verbose] [--dry-run] [--version] [--jenkinshost <hostname>] [--jenkinsuser <username>] [--jenkinspwd <password>] <plug IP/hostname> <on|off|info|jenkins>
 ```
-Available commands
+Available commands:
+* on - switch plug in
+* off - switch plug off
+* info - query information from the plug
+* jenkins - "Jenkins mode" , query jobs from jenkins server and switch plug accordingly
 
-on - switch plug in
-off - switch plug iff
-info - query information from the plug
-jenkins - "Jenkins mode" , query jobs from jenkins server and switch plug accordingly
-
-Available options
+Available options:
 
 Name           Description           
 ------
@@ -43,4 +42,4 @@ Name           Description
 --jenkinsuser    Jenkins server IP/name              
 -v                                                   
 --verbose        enable verbose output               
---version        Print application version 
+--version        print application version 
