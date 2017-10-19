@@ -32,6 +32,7 @@ import java.util.stream.Collectors;
 
 import javax.xml.parsers.ParserConfigurationException;
 
+import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HttpException;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
@@ -170,7 +171,8 @@ public class JenkinsClient implements AutoCloseable
     }
 
     /**
-     * Returns all Jenkins jobs whose status is accessible to the current user.
+     * Returns all Jenkins jobs whose status is accessible to the current user
+     * without the jenkins jobs with the <code>ignoreme</code> prefix.
      *
      * @return
      * @throws IOException
@@ -194,6 +196,11 @@ public class JenkinsClient implements AutoCloseable
             {
                 final JSONObject job = jobs.getJSONObject( i );
                 final String jobName = job.getString( "name" );
+
+                if (StringUtils.startsWithIgnoreCase(jobName,"ignoreme")) {
+                    continue;
+                }
+
                 final String jobColor = job.getString( "color" );
 
                 JobStatus jobstatus;
