@@ -1,13 +1,16 @@
 # What's this?
 
 This is a tiny Java client that is able to query the job status from a Jenkins server and switch a TP-Link HS100/HS110 Wifi plug on or off according to the build status. If at least one build is in the 'failed' state, the plug will be switched on.
+Note that it will skip the jenkins jobs which have the name with prefix 'ignoreme'.
 
 # Building
 
 To build you will need Maven 3.x and JDK 1.8
 
-Just run
+# Dependency
+[jsonparser](https://github.com/toby1984/jsonparser)
 
+Just run
 ```
 mvn clean package
 ```
