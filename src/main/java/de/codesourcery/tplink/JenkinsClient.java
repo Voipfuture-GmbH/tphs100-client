@@ -238,8 +238,23 @@ public class JenkinsClient implements AutoCloseable
         final String jobName = job.getString("name");
         final String lastJob = doGetRequest("/job/" + jobName + "/api/json/");
         final JSONObject lastJobJSON = new JSONObject(lastJob);
-        final int lastSuccessfulBuildNumber = lastJobJSON.getJSONObject("lastSuccessfulBuild").getInt("number");
-        final int lastFailedBuildNumber = lastJobJSON.getJSONObject("lastFailedBuild").getInt("number");
+        
+        final JSONObject sucessfulBuild;
+        if ( lastJobJSON.isNull("lastSuccessfulBuild") ) {
+            sucessfulBuild = null;
+        } else {
+            sucessfulBuild = lastJobJSON.getJSONObject("lastSuccessfulBuild");
+        }
+        
+        final JSONObject failedBuild; 
+        if ( lastJobJSON.isNull( "lastFailedBuild" ) ) {
+            failedBuild = null;
+        } else {
+            failedBuild = lastJobJSON.getJSONObject("lastFailedBuild");
+        }
+        
+        final int lastSuccessfulBuildNumber = sucessfulBuild == null ? failedBuild == null ? 0 : failedBuild.getInt("number") : sucessfulBuild.getInt("number");
+        final int lastFailedBuildNumber = failedBuild == null ? sucessfulBuild == null ? 0 : sucessfulBuild.getInt("number") : failedBuild.getInt("number");
         return lastFailedBuildNumber >= lastSuccessfulBuildNumber;
     }
 
