@@ -19,7 +19,7 @@ and you should find a self-executable JAR inside the target folder.
 # Running
 
 ```
-java -jar target/tphs100-client.jar [-d|--debug] [-v|--verbose] [--dry-run] [--version] [--jenkinshost <hostname>] [--jenkinsuser <username>] [--jenkinspwd <password>] <plug IP/hostname> <on|off|info|jenkins>
+java -jar target/tphs100-client.jar [-d|--debug] [-v|--verbose] [--ignoredjobs <jobnames>] [--dry-run] [--version] [--jenkinshost <hostname>] [--jenkinsuser <username>] [--jenkinspwd <password>] <plug IP/hostname> <on|off|info|jenkins>
 ```
 Available commands:
 * on - switch plug in
@@ -36,7 +36,8 @@ Name           Description
 --dry-run        Do not actually modify the plug's   
                    configuration/state               
 -h                                                   
---help           displays this help                  
+--help           displays this help    
+--ignoredjobs    Comma-separated list of job names (case-insensitive)
 --jenkinshost    Jenkins username                    
 --jenkinsport    Jenkins port                        
 --jenkinspwd     Jenkins password                    
