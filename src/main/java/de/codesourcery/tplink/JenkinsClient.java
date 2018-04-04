@@ -197,10 +197,6 @@ public class JenkinsClient implements AutoCloseable
                 final JSONObject job = jobs.getJSONObject( i );
                 final String jobName = job.getString( "name" );
 
-                if (StringUtils.startsWithIgnoreCase(jobName,"ignoreme")) {
-                    continue;
-                }
-                
                 if( ! job.has("color") ) { // jobs of class 'org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject' do not have this attribute 
                     continue;
                 }

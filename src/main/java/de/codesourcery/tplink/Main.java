@@ -21,8 +21,11 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.text.ParseException;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import javax.xml.parsers.ParserConfigurationException;
 
@@ -60,6 +63,7 @@ public class Main
         parser.accepts( "help" , "displays this help").forHelp();
         
         final ArgumentAcceptingOptionSpec<String> userOpt = parser.accepts( "jenkinsuser" ,"Jenkins server IP/name").withRequiredArg();
+        final ArgumentAcceptingOptionSpec<String> ignoredJobsOpt = parser.accepts( "ignoredjobs" ,"Comma-separated list with names of jobs that should be ignored").withRequiredArg();
         final ArgumentAcceptingOptionSpec<String> pwdOpt = parser.accepts( "jenkinspwd" , "Jenkins password").withRequiredArg();
         final ArgumentAcceptingOptionSpec<String> portOpt = parser.accepts( "jenkinsport" , "Jenkins port").withRequiredArg();
         final ArgumentAcceptingOptionSpec<String> schemeOpt = parser.accepts( "jenkinsscheme" , "Scheme (http/https) to use").withRequiredArg().defaultsTo("http");
@@ -108,6 +112,35 @@ public class Main
         final String jenkinsUser = options.valueOf( userOpt );
         final String jenkinsScheme = options.valueOf( schemeOpt );
         final String jenkinsPassword = options.valueOf( pwdOpt );
+        final String ignoredJobs = options.valueOf( ignoredJobsOpt );
+        
+        final Set<String> ignoredJobNames = new HashSet<>();
+        if ( StringUtils.isNotBlank( ignoredJobs ) ) 
+        {
+            for ( String jobName : ignoredJobs.split(",") ) {
+                if ( StringUtils.isBlank( jobName ) ) {
+                    throw new IllegalArgumentException("--ignoredjobs argument must not contain blank job names");
+                }
+                ignoredJobNames.add( jobName.toLowerCase() );
+            }
+        }
+        final Predicate<Job> isIgnored = job -> 
+        {
+            final String jobName = job.name.toLowerCase();
+            boolean ignored = false;
+            String reason = null;
+            if ( jobName.startsWith("ignoreme") ) {
+                ignored = true;
+                reason = "IGNORED job because name starts with 'ignoreme'";
+            } else {
+                ignored = ignoredJobNames.contains( jobName );
+                reason = "IGNORED job by configuration";
+            }
+            if ( verbose && ignored ) {
+                System.out.println( reason+": "+job.name);
+            }
+            return ignored;
+        };
         
         final int jenkinsPort = options.has( portOpt ) ? Integer.parseInt( options.valueOf( portOpt ) ) : -1; 
         
@@ -157,6 +190,7 @@ public class Main
                 jenkins.setScheme( jenkinsScheme );
 
                 final List<Job> projects = jenkins.getJobs();
+                projects.removeIf( isIgnored );
                 final boolean lightOn = projects.stream().map( j -> j.status).anyMatch( JobStatus::isFailure );
                 if ( client.isVerbose() ) {
                     if ( lightOn ) {
