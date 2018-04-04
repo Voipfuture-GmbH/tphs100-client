@@ -38,7 +38,7 @@ Name           Description
 -h                                                   
 --help           displays this help    
 --ignoredjobs    Comma-separated list of job names (case-
-insensitive)
+                 insensitive)
 --jenkinshost    Jenkins username                    
 --jenkinsport    Jenkins port                        
 --jenkinspwd     Jenkins password                    
