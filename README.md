@@ -34,16 +34,16 @@ Name           Description
 -d                                                   
 --debug          enable debug output                 
 --dry-run        Do not actually modify the plug's   
-                   configuration/state               
+                 configuration/state               
 -h                                                   
 --help           displays this help    
---ignoredjobs    Comma-separated list of job names (case-
-                 insensitive)
+--ignoredjobs    Comma-separated list of job names 
+                 (case-insensitive)
 --jenkinshost    Jenkins username                    
 --jenkinsport    Jenkins port                        
 --jenkinspwd     Jenkins password                    
 --jenkinsscheme  Scheme (http/https) to use (default:
-                   http)                             
+                 http)                             
 --jenkinsuser    Jenkins server IP/name              
 -v                                                   
 --verbose        enable verbose output               
