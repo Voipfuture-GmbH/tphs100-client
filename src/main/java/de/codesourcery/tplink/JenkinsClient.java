@@ -200,6 +200,10 @@ public class JenkinsClient implements AutoCloseable
                 if (StringUtils.startsWithIgnoreCase(jobName,"ignoreme")) {
                     continue;
                 }
+                
+                if( ! job.has("color") ) { // jobs of class 'org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject' do not have this attribute 
+                    continue;
+                }
 
                 final String jobColor = job.getString( "color" );
 
