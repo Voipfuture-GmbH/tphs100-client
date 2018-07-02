@@ -99,7 +99,7 @@ public class JenkinsClient implements AutoCloseable
         DISABLED_PENDING("disabled_anime"),
         ABORTED("aborted"),
         ABORTED_PENDING("aborted_anime"),
-        NOTBUILT("nobuilt"),
+        NOTBUILT("notbuilt"),
         NOTBUILT_PENDING("nobuilt_anime");
 
         private final String jenkinsText;
